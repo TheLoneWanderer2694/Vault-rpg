@@ -1,1031 +1,390 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MNO RPG Engine - Asymmetric 2-Player</title>
+    <title>Roku Cast & Remote Hub</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Press Start 2P & Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .font-retro {
-            font-family: 'Press Start 2P', monospace;
-        }
         body {
             font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a, #020617);
+            min-height: 100vh;
         }
-        /* Custom scrollbars */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        ::-webkit-scrollbar-track {
-            background: #090d16;
+        .glass-button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #3730a3;
-            border-radius: 4px;
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(168, 85, 247, 0.4);
+            transform: translateY(-1px);
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4f46e5;
+        .glass-button:active {
+            transform: translateY(1px);
         }
-        .glow-box {
-            box-shadow: 0 0 25px -5px rgba(79, 70, 229, 0.25);
+        .roku-purple-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.35);
         }
-        .glow-gm {
-            box-shadow: 0 0 25px -5px rgba(217, 119, 6, 0.25);
+        .roku-purple-btn:hover {
+            background: linear-gradient(135deg, #9333ea 0%, #581c87 100%);
+            box-shadow: 0 6px 24px rgba(147, 51, 234, 0.45);
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden select-none">
+<body class="text-slate-100 antialiased p-4 md:p-8 flex flex-col justify-between min-h-screen">
 
-    <!-- Notification Modal -->
-    <div id="msgModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden p-4 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-indigo-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center glow-box">
-            <h3 id="msgTitle" class="font-retro text-amber-400 text-sm mb-3">Notice</h3>
-            <p id="msgBody" class="text-slate-300 text-xs sm:text-sm mb-6 leading-relaxed"></p>
-            <button onclick="closeModal()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-retro text-xs text-white rounded-xl shadow-lg transition transform active:scale-95 cursor-pointer">Acknowledge</button>
-        </div>
-    </div>
-
-    <!-- NPC Dialogue Modal -->
-    <div id="npcDialogueModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden p-4 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-indigo-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl flex flex-col gap-4 glow-box">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-3">
-                    <div id="npcModalAvatar" class="w-10 h-10 rounded-full bg-indigo-600/30 border border-indigo-400 flex items-center justify-center font-bold text-amber-400">NPC</div>
-                    <div>
-                        <h3 id="npcModalName" class="font-retro text-xs text-amber-400">NPC Name</h3>
-                        <span id="npcModalRole" class="text-[11px] text-slate-400">Role / Title</span>
-                    </div>
+    <div class="max-w-6xl mx-auto w-full">
+        <!-- Top Navigation Bar -->
+        <header class="flex flex-wrap items-center justify-between gap-4 mb-8 glass-panel rounded-2xl p-4 md:px-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl roku-purple-btn flex items-center justify-center font-bold text-xl">
+                    R
                 </div>
-                <button onclick="closeNpcDialogue()" class="text-slate-400 hover:text-white font-bold cursor-pointer">✕</button>
-            </div>
-            
-            <div id="npcDialogueHistory" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 h-64 overflow-y-auto space-y-2">
-                <!-- Conversation stream -->
-            </div>
-
-            <div id="npcAiStatus" class="hidden text-[10px] text-indigo-400 italic flex items-center gap-1.5 animate-pulse">
-                <span>✨ Processing NPC Dialogue Response...</span>
-            </div>
-
-            <div class="flex flex-col gap-2">
-                <div class="flex gap-2">
-                    <input type="text" id="npcUserSpeechInput" onkeypress="handleNpcSpeechKey(event)" placeholder="Type response to NPC..." class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-                    <button onclick="submitCustomNpcDialogue()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 font-retro text-[9px] text-white rounded-xl shadow transition transform active:scale-95 cursor-pointer flex items-center gap-1">
-                        <span>SAY</span>
-                    </button>
-                </div>
-
-                <div id="npcDialogueOptions" class="grid grid-cols-3 gap-1.5 pt-1">
-                    <button onclick="interactNpc('ask_rumors')" class="py-1.5 px-2 bg-slate-800/80 hover:bg-indigo-900/50 border border-slate-700/60 text-[10px] text-slate-300 rounded-lg truncate cursor-pointer">💬 Ask Rumors</button>
-                    <button onclick="interactNpc('offer_help')" class="py-1.5 px-2 bg-slate-800/80 hover:bg-indigo-900/50 border border-slate-700/60 text-[10px] text-slate-300 rounded-lg truncate cursor-pointer">⚔️ Offer Help</button>
-                    <button onclick="interactNpc('persuade')" class="py-1.5 px-2 bg-slate-800/80 hover:bg-indigo-900/50 border border-slate-700/60 text-[10px] text-slate-300 rounded-lg truncate cursor-pointer">🎲 Persuade Check</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Launcher / Setup Screen -->
-    <div id="screenCreation" class="fixed inset-0 bg-slate-950 z-40 flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-slate-900/90 backdrop-blur-md border border-indigo-500/30 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl my-auto glow-box">
-            <div class="flex items-center justify-center gap-3 mb-4">
-                <div class="p-3 bg-indigo-600/20 border border-indigo-500/40 rounded-2xl">
-                    <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                </div>
-                <div class="text-left">
-                    <h1 class="font-retro text-lg sm:text-xl text-indigo-400 tracking-wide">MNO RPG ENGINE</h1>
-                    <p class="text-slate-400 text-xs">2-Player Asymmetric (Player Hero vs. Game Master)</p>
-                </div>
-            </div>
-            
-            <div class="space-y-4 text-left mb-6">
-                <!-- Session Mode Selector -->
                 <div>
-                    <label class="block text-[10px] font-retro text-amber-400 mb-1.5 uppercase">Select Play Mode</label>
-                    <div class="grid grid-cols-2 gap-2 mb-3">
-                        <button id="modeLocalBtn" onclick="setPlayMode('local')" class="py-2 bg-indigo-600 border border-indigo-400 font-retro text-[9px] text-white rounded-xl shadow cursor-pointer">🛋️ HOTSEAT / SINGLE SCREEN</button>
-                        <button id="modePeerBtn" onclick="setPlayMode('peer')" class="py-2 bg-slate-800 border border-slate-700 font-retro text-[9px] text-slate-300 rounded-xl cursor-pointer">🌐 REMOTE MULTIPLAYER (P2P)</button>
-                    </div>
-
-                    <!-- P2P Connection Subpanel -->
-                    <div id="p2pControlPanel" class="bg-slate-950/80 border border-indigo-500/30 p-3 rounded-2xl hidden space-y-2">
-                        <span class="font-retro text-[9px] text-indigo-300 block">Peer-to-Peer Room Sync</span>
-                        <div class="flex gap-2">
-                            <input type="text" id="p2pRoomInput" placeholder="Enter Room ID (e.g. dragon-room)" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-                            <button onclick="connectP2PRoom()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 font-retro text-[8px] text-white rounded-xl shadow cursor-pointer">CONNECT ROOM</button>
-                        </div>
-                        <div class="text-[10px] text-slate-400 flex items-center justify-between">
-                            <span>Status: <b id="p2pStatusText" class="text-amber-400">Disconnected</b></span>
-                            <span id="p2pPeerId" class="text-slate-500 font-mono text-[9px]"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Role Selector -->
-                <div>
-                    <label class="block text-[10px] font-retro text-amber-400 mb-1.5 uppercase">Select Primary Seat / Role</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="selectRoleHero" onclick="setInitialRole('hero')" class="py-2.5 bg-indigo-600 border border-indigo-400 font-retro text-[10px] text-white rounded-xl shadow cursor-pointer">🗡️ PLAYER HERO</button>
-                        <button id="selectRoleGm" onclick="setInitialRole('gm')" class="py-2.5 bg-slate-800 border border-slate-700 font-retro text-[10px] text-slate-300 rounded-xl cursor-pointer">📜 GAME MASTER</button>
-                    </div>
-                </div>
-
-                <!-- AI Hero Generator -->
-                <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-2xl p-3 flex items-center justify-between">
-                    <div>
-                        <span class="font-retro text-[10px] text-indigo-300 block">AI Hero Builder</span>
-                        <span class="text-[11px] text-slate-400">Roll name, class, stats & backstory</span>
-                    </div>
-                    <button onclick="generateAIHero()" class="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-retro text-[9px] text-white rounded-xl shadow transition transform active:scale-95 cursor-pointer flex items-center gap-1.5">
-                        <span>✨ ROLL HERO</span>
-                    </button>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-retro text-slate-300 mb-1.5 uppercase">Hero Name & Class</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <input type="text" id="heroNameInput" value="Valen the Wanderer" class="col-span-2 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm">
-                        <input type="text" id="heroRoleInput" value="Adventurer" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-retro text-slate-300 mb-1.5 uppercase">Campaign World Preset</label>
-                    <select id="scenarioSelect" onchange="loadPresetScenario()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm">
-                        <option value="dark_fantasy">Dark Fantasy: Chrono Realm</option>
-                        <option value="cyberpunk">Cyberpunk: Neon Overdrive 2099</option>
-                        <option value="custom">Custom Sandbox World</option>
-                    </select>
-                </div>
-
-                <div id="backstoryContainer" class="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 hidden">
-                    <span class="text-[9px] font-retro text-amber-400 block mb-1">Character Backstory:</span>
-                    <p id="backstoryText" class="text-xs text-slate-300 italic leading-relaxed"></p>
+                    <h1 class="font-bold text-lg leading-tight">Roku Cast Hub</h1>
+                    <p class="text-xs text-slate-400">Stream Local & Web Media directly to TV</p>
                 </div>
             </div>
+
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="relative flex-1 sm:w-64">
+                    <i data-lucide="wifi" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" id="rokuIp" placeholder="Roku IP (e.g. 192.168.1.50)" 
+                           class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-purple-500 transition-colors">
+                </div>
+                <button onclick="saveRokuIp()" class="glass-button px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 text-purple-300">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save IP
+                </button>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="initGame(false)" class="py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-retro text-[11px] text-white rounded-xl shadow-lg transition transform active:scale-95 cursor-pointer">START CAMPAIGN</button>
-                <button onclick="initGame(true)" class="py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 font-retro text-[11px] text-slate-200 rounded-xl shadow-lg transition transform active:scale-95 cursor-pointer">LOAD SAVE</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Game Interface -->
-    <div id="screenGame" class="flex-1 flex flex-col lg:flex-row h-full max-w-7xl mx-auto w-full p-2 sm:p-4 gap-4 overflow-hidden hidden">
-        
-        <!-- Left Sidebar: Character Sheet & Role Dashboard -->
-        <div class="w-full lg:w-80 flex flex-col gap-3 shrink-0 overflow-y-auto pr-1">
-            
-            <!-- Active Role Indicator Bar -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span id="roleBadgeIcon" class="text-base">🗡️</span>
-                    <div>
-                        <span id="roleBadgeText" class="font-retro text-[10px] text-amber-400 block">PLAYER SEAT</span>
-                        <span class="text-[9px] text-slate-400">Asymmetric 2P Mode</span>
-                    </div>
-                </div>
-                <button onclick="toggleActiveRole()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-indigo-900/50 border border-indigo-500/30 font-retro text-[8px] text-indigo-300 rounded-xl cursor-pointer transition">SWITCH SEAT</button>
-            </div>
-
-            <!-- Hero Status Card -->
-            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl relative overflow-hidden">
-                <div class="flex items-center justify-between mb-3">
-                    <div>
-                        <h2 id="displayHeroName" class="font-retro text-xs text-amber-400 truncate max-w-[140px]">Hero</h2>
-                        <span id="displayClass" class="text-[11px] text-slate-400 font-medium">Level 1 Adventurer</span>
-                    </div>
-                    <span id="displayZone" class="px-2 py-1 bg-indigo-950 border border-indigo-500/30 text-indigo-300 rounded-lg text-[10px] font-medium">Town Square</span>
-                </div>
-
-                <!-- XP Bar -->
-                <div class="mb-3">
-                    <div class="flex justify-between text-[10px] text-slate-400 mb-1">
-                        <span>EXP</span>
-                        <span id="displayExp">0 / 100</span>
-                    </div>
-                    <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800">
-                        <div id="expBar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                </div>
-
-                <!-- HP / Mana -->
-                <div class="grid grid-cols-2 gap-2 text-xs mb-3">
-                    <div class="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
-                        <span class="text-slate-400 text-[10px] block">HP</span>
-                        <span id="displayHp" class="font-bold text-emerald-400 text-xs">100/100</span>
-                    </div>
-                    <div class="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
-                        <span class="text-slate-400 text-[10px] block">Mana / Energy</span>
-                        <span id="displayMana" class="font-bold text-cyan-400 text-xs">50/50</span>
-                    </div>
-                </div>
-
-                <!-- Attributes Grid (d20 style) -->
-                <div class="grid grid-cols-4 gap-1.5 text-center text-[10px] mb-3">
-                    <div class="bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
-                        <span class="text-slate-400 block text-[9px]">STR</span>
-                        <span id="statStr" class="font-bold text-slate-200">10</span>
-                        <span id="modStr" class="text-[8px] text-indigo-400 block">+0</span>
-                    </div>
-                    <div class="bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
-                        <span class="text-slate-400 block text-[9px]">DEX</span>
-                        <span id="statDex" class="font-bold text-slate-200">10</span>
-                        <span id="modDex" class="text-[8px] text-indigo-400 block">+0</span>
-                    </div>
-                    <div class="bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
-                        <span class="text-slate-400 block text-[9px]">INT</span>
-                        <span id="statInt" class="font-bold text-slate-200">10</span>
-                        <span id="modInt" class="text-[8px] text-indigo-400 block">+0</span>
-                    </div>
-                    <div class="bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
-                        <span class="text-slate-400 block text-[9px]">WIS</span>
-                        <span id="statWis" class="font-bold text-slate-200">10</span>
-                        <span id="modWis" class="text-[8px] text-indigo-400 block">+0</span>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
-                    <span class="text-[11px] text-slate-400">Currency</span>
-                    <span id="displayGold" class="font-retro text-amber-400 text-[11px]">75 Gold</span>
-                </div>
-            </div>
-
-            <!-- Navigation Controls -->
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="switchTab('narrative')" id="tabNarrativeBtn" class="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-retro text-[9px] rounded-xl shadow transition cursor-pointer">📜 Game Feed</button>
-                <button onclick="switchTab('inventory')" id="tabInvBtn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-retro text-[9px] rounded-xl shadow transition cursor-pointer">🎒 Equipment</button>
-                <button onclick="switchTab('npc')" id="tabNpcBtn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-retro text-[9px] rounded-xl shadow transition cursor-pointer">👥 NPCs</button>
-                <button onclick="switchTab('lore')" id="tabLoreBtn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-retro text-[9px] rounded-xl shadow transition cursor-pointer">📖 Lorebook</button>
-                <button onclick="switchTab('gmStation')" id="tabGmStationBtn" class="col-span-2 py-2.5 bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 border border-amber-500/40 font-retro text-[9px] rounded-xl shadow transition cursor-pointer">👑 GM Control Station</button>
-            </div>
-
-            <!-- Action Checks Quick Roller -->
-            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
-                <span class="text-[10px] font-retro text-indigo-400 uppercase block mb-2">Perform Stat Check (d20)</span>
-                <div class="grid grid-cols-4 gap-1.5">
-                    <button onclick="performRollCheck('STR')" class="py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-800 hover:border-indigo-500/50 text-[10px] text-slate-200 rounded-lg transition font-medium cursor-pointer">STR</button>
-                    <button onclick="performRollCheck('DEX')" class="py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-800 hover:border-indigo-500/50 text-[10px] text-slate-200 rounded-lg transition font-medium cursor-pointer">DEX</button>
-                    <button onclick="performRollCheck('INT')" class="py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-800 hover:border-indigo-500/50 text-[10px] text-slate-200 rounded-lg transition font-medium cursor-pointer">INT</button>
-                    <button onclick="performRollCheck('WIS')" class="py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-800 hover:border-indigo-500/50 text-[10px] text-slate-200 rounded-lg transition font-medium cursor-pointer">WIS</button>
-                </div>
-            </div>
-
-            <!-- Quick Utilities -->
-            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex gap-2 mt-auto">
-                <button onclick="saveGame()" class="flex-1 py-2 bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/30 text-emerald-300 font-retro text-[9px] rounded-xl transition cursor-pointer">Save</button>
-                <button onclick="exportSave()" class="flex-1 py-2 bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/30 text-indigo-300 font-retro text-[9px] rounded-xl transition cursor-pointer">Export</button>
-                <button onclick="resetGame()" class="flex-1 py-2 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-300 font-retro text-[9px] rounded-xl transition cursor-pointer">Reset</button>
-            </div>
-        </div>
-
-        <!-- Right Main Viewport -->
-        <div class="flex-1 flex flex-col bg-slate-900/80 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-            
-            <!-- Panel Header -->
-            <div class="bg-slate-950/80 border-b border-slate-800 px-5 py-3.5 flex items-center justify-between">
-                <div>
-                    <h3 id="panelTitle" class="font-retro text-xs text-indigo-400">NARRATIVE FEED</h3>
-                    <span id="panelSub" class="text-xs text-slate-400">Asymmetric Campaign Terminal</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span id="liveSyncBadge" class="hidden text-[9px] px-2 py-0.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 rounded-full font-mono flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Sync Active
-                    </span>
-                    <label class="text-[10px] text-slate-400 flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" id="toggleInnerThoughts" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0">
-                        <span>Show GM Notes</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Viewport Workspace -->
-            <div class="flex-1 p-4 sm:p-5 overflow-y-auto relative">
-                
-                <!-- NARRATIVE / CHAT TAB -->
-                <div id="viewNarrative" class="h-full flex flex-col space-y-4">
-                    <div id="narrativeFeed" class="flex-1 space-y-4 overflow-y-auto pr-1 min-h-[300px] max-h-[460px]">
-                        <!-- Messages appended dynamically -->
+            <!-- Left Column: Media Player & Video Cast Setup (7 Cols) -->
+            <section class="lg:col-span-7 space-y-6">
+                <!-- Video Preview & Cast Controls -->
+                <div class="glass-panel rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center gap-2">
+                            <i data-lucide="tv" class="w-5 h-5 text-purple-400"></i> Media Streamer
+                        </h2>
+                        <span id="connectionBadge" class="text-xs px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> IP Not Tested
+                        </span>
                     </div>
 
-                    <!-- Tactical Bar & Action Form -->
-                    <div class="pt-2 border-t border-slate-800/80">
-                        <!-- Player Mode Controls -->
-                        <div id="playerInputSection">
-                            <span class="text-[10px] font-retro text-slate-400 uppercase block mb-1.5">Hero Tactical Intentions:</span>
-                            <div class="flex flex-wrap gap-1.5 mb-2.5">
-                                <button onclick="triggerQuickAction('Inspect Surroundings')" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-indigo-900/50 border border-slate-700/60 text-[10px] text-slate-200 rounded-xl cursor-pointer">🔍 Inspect Surroundings</button>
-                                <button onclick="triggerQuickAction('Attack Foe')" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-rose-900/50 border border-slate-700/60 text-[10px] text-slate-200 rounded-xl cursor-pointer">⚔️ Attack Foe</button>
-                                <button onclick="triggerQuickAction('Cast Arcane Pulse')" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-cyan-900/50 border border-slate-700/60 text-[10px] text-slate-200 rounded-xl cursor-pointer">✨ Cast Magic</button>
-                                <button onclick="triggerQuickAction('Rest & Recover')" class="px-2.5 py-1.5 bg-slate-800/90 hover:bg-emerald-900/50 border border-slate-700/60 text-[10px] text-slate-200 rounded-xl cursor-pointer">💚 Rest & Recover</button>
-                            </div>
+                    <!-- Video Preview Player -->
+                    <div class="aspect-video bg-slate-950/80 rounded-2xl overflow-hidden border border-slate-800 relative group mb-5">
+                        <video id="previewPlayer" class="w-full h-full object-cover" controls x-webkit-airplay="allow">
+                            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+                            Your browser does not support video playback.
+                        </video>
+                    </div>
 
+                    <!-- Video URL Controls -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1.5">Direct Video / Stream URL (.mp4, .m3u8, .mkv)</label>
                             <div class="flex gap-2">
-                                <input type="text" id="userInputPrompt" onkeypress="handlePromptKey(event)" placeholder="Type custom action, speech (&quot;...&quot;), or action intent..." class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
-                                <button onclick="submitUserAction()" class="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 font-retro text-[10px] text-white rounded-xl shadow-lg transition transform active:scale-95 cursor-pointer flex items-center gap-2">
-                                    <span>SUBMIT ACTION</span>
+                                <input type="url" id="videoUrl" 
+                                       value="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                                       class="flex-1 bg-slate-900/80 border border-slate-700/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition-colors">
+                                <button onclick="loadPreviewVideo()" class="glass-button px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 text-slate-300">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Load
                                 </button>
                             </div>
                         </div>
 
-                        <!-- GM Quick Narration Entry (When in GM Seat) -->
-                        <div id="gmInputSection" class="hidden flex flex-col gap-2">
-                            <span class="text-[10px] font-retro text-amber-400 uppercase block">Game Master Narrative Entry:</span>
-                            <div class="flex gap-2">
-                                <textarea id="gmNarrativeText" rows="2" placeholder="Narrate the world response, outcome, or monster action..." class="flex-1 bg-slate-950 border border-amber-500/40 rounded-xl p-3 text-xs text-amber-100 focus:outline-none focus:border-amber-400"></textarea>
-                                <button onclick="submitGmNarration()" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 font-retro text-[10px] text-slate-950 font-bold rounded-xl shadow-lg transition transform active:scale-95 cursor-pointer">NARRATE</button>
+                        <!-- Cast Options & Primary Action -->
+                        <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-400">Format:</label>
+                                <select id="mediaType" class="bg-slate-900 border border-slate-700 rounded-lg text-xs px-2.5 py-1.5 focus:outline-none focus:border-purple-500">
+                                    <option value="mp4">MP4</option>
+                                    <option value="hls">HLS / M3U8</option>
+                                    <option value="mkv">MKV</option>
+                                </select>
                             </div>
+
+                            <button onclick="castToRoku()" class="roku-purple-btn px-6 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 text-white transition-transform active:scale-95">
+                                <i data-lucide="cast" class="w-4 h-4"></i> Cast Video to Roku
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- GM CONTROL STATION TAB -->
-                <div id="viewGmStation" class="hidden space-y-4">
-                    <div class="bg-amber-950/20 border border-amber-500/40 p-4 rounded-2xl">
-                        <h4 class="font-retro text-xs text-amber-400 mb-1">👑 GAME MASTER CONTROL CONSOLE</h4>
-                        <p class="text-xs text-slate-300">Take direct narrative control over the campaign, reward achievements, trigger encounters, or adjust hero status.</p>
-                    </div>
-
-                    <!-- Direct GM Rewards / Modifications -->
+                <!-- Sample Media Presets -->
+                <div class="glass-panel rounded-3xl p-6">
+                    <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i> Test Stream Presets
+                    </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="bg-slate-950/70 border border-slate-800 p-3.5 rounded-2xl space-y-2">
-                            <span class="font-retro text-[10px] text-indigo-400 block">Grant Hero Rewards</span>
-                            <div class="flex gap-2">
-                                <button onclick="gmGrantReward('exp', 50)" class="flex-1 py-2 bg-indigo-950 hover:bg-indigo-900 border border-indigo-500/40 text-xs text-indigo-200 rounded-xl font-medium">+50 EXP</button>
-                                <button onclick="gmGrantReward('gold', 50)" class="flex-1 py-2 bg-amber-950 hover:bg-amber-900 border border-amber-500/40 text-xs text-amber-200 rounded-xl font-medium">+50 Gold</button>
-                                <button onclick="gmGrantReward('heal', 30)" class="flex-1 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-xs text-emerald-200 rounded-xl font-medium">+30 HP</button>
+                        <button onclick="setPreset('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 'mp4', 'Big Buck Bunny')" 
+                                class="glass-button p-3 rounded-xl text-left flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-slate-200">Big Buck Bunny</p>
+                                <p class="text-[10px] text-slate-400">Standard MP4 Demo</p>
                             </div>
-                        </div>
+                            <i data-lucide="play" class="w-4 h-4 text-slate-400"></i>
+                        </button>
 
-                        <div class="bg-slate-950/70 border border-slate-800 p-3.5 rounded-2xl space-y-2">
-                            <span class="font-retro text-[10px] text-rose-400 block">Trigger Environmental Event</span>
-                            <div class="flex gap-2">
-                                <button onclick="gmTriggerEvent('ambush')" class="flex-1 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-xs text-rose-200 rounded-xl font-medium">⚔️ Ambush Foe</button>
-                                <button onclick="gmTriggerEvent('trap')" class="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-xl font-medium">⚠️ Spring Trap</button>
+                        <button onclick="setPreset('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', 'mp4', 'Elephants Dream')" 
+                                class="glass-button p-3 rounded-xl text-left flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-slate-200">Elephants Dream</p>
+                                <p class="text-[10px] text-slate-400">Standard MP4 Demo</p>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- GM Narrative Entry Field -->
-                    <div class="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-3">
-                        <span class="font-retro text-[10px] text-amber-400 block">GM Scene & Decision Writer</span>
-                        <input type="text" id="gmSceneLocation" placeholder="Update Zone / Location (e.g., Underground Vault)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-400">
-                        <textarea id="gmSceneText" rows="3" placeholder="Enter detailed GM scene description or response to player action..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-400"></textarea>
-                        <textarea id="gmThoughtText" rows="2" placeholder="Private GM Notes / Reasoning (Optional)..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-indigo-300 italic focus:outline-none focus:border-indigo-400"></textarea>
-                        <button onclick="gmPublishScene()" class="w-full py-3 bg-amber-600 hover:bg-amber-500 font-retro text-[10px] text-slate-950 font-bold rounded-xl shadow cursor-pointer">PUBLISH SCENE TO GAME FEED</button>
+                            <i data-lucide="play" class="w-4 h-4 text-slate-400"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- INVENTORY TAB -->
-                <div id="viewInventory" class="hidden space-y-4">
-                    <h4 class="text-xs font-retro text-slate-300">Equipped Gear & Backpack</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="inventoryGrid">
-                        <!-- Inventory items -->
-                    </div>
+                <!-- CORS Disclaimer Note -->
+                <div class="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-200/80 leading-relaxed space-y-1">
+                    <p class="font-semibold flex items-center gap-1.5 text-amber-300">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i> Browser Security Notice (CORS / Local Network):
+                    </p>
+                    <p>Modern web browsers block web pages from sending direct local network requests (`http://192.168.x.x:8060`). For this web app to interact with your real TV, use a browser extension that disables CORS (e.g., <em>Allow CORS</em> extension) or host this page on local network localhost.</p>
                 </div>
+            </section>
 
-                <!-- NPC TAB -->
-                <div id="viewNpc" class="hidden space-y-4">
-                    <div class="flex items-center justify-between">
-                        <h4 class="text-xs font-retro text-slate-300">World Contacts & Roster</h4>
-                        <button onclick="addNpcPrompt()" class="px-3 py-1.5 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-retro text-[9px] rounded-lg hover:bg-indigo-600/50 transition cursor-pointer">+ Add NPC</button>
+            <!-- Right Column: Interactive Roku Remote (5 Cols) -->
+            <section class="lg:col-span-5 flex justify-center">
+                <div class="glass-panel w-full max-w-sm rounded-[40px] p-6 shadow-2xl border border-slate-700/50 flex flex-col items-center">
+                    
+                    <!-- Remote Header -->
+                    <div class="w-full flex items-center justify-between mb-6 pb-3 border-b border-slate-800">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Remote Control</span>
+                        <button onclick="sendKey('Power')" class="p-2 rounded-full text-red-400 hover:bg-red-500/10 transition-colors" title="Power On/Off">
+                            <i data-lucide="power" class="w-5 h-5"></i>
+                        </button>
                     </div>
-                    <div id="npcCardsList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <!-- NPC Cards -->
+
+                    <!-- Top System Controls -->
+                    <div class="grid grid-cols-3 gap-3 w-full mb-6">
+                        <button onclick="sendKey('Back')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-300" title="Back">
+                            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('Home')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-purple-400" title="Home">
+                            <i data-lucide="home" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('Info')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-300" title="Options / Asterisk">
+                            <i data-lucide="asterisk" class="w-5 h-5"></i>
+                        </button>
                     </div>
+
+                    <!-- Directional D-Pad -->
+                    <div class="relative w-56 h-56 bg-slate-900/90 rounded-full border border-slate-800 p-2 shadow-inner my-2 flex items-center justify-center">
+                        <!-- Up -->
+                        <button onclick="sendKey('Up')" class="absolute top-2 w-14 h-12 flex items-center justify-center text-slate-300 hover:text-purple-400 active:scale-90 transition-transform">
+                            <i data-lucide="chevron-up" class="w-8 h-8"></i>
+                        </button>
+                        <!-- Left -->
+                        <button onclick="sendKey('Left')" class="absolute left-2 h-14 w-12 flex items-center justify-center text-slate-300 hover:text-purple-400 active:scale-90 transition-transform">
+                            <i data-lucide="chevron-left" class="w-8 h-8"></i>
+                        </button>
+                        <!-- OK / Select -->
+                        <button onclick="sendKey('Select')" class="w-16 h-16 roku-purple-btn rounded-full flex items-center justify-center text-white font-bold shadow-lg active:scale-90 transition-transform">
+                            OK
+                        </button>
+                        <!-- Right -->
+                        <button onclick="sendKey('Right')" class="absolute right-2 h-14 w-12 flex items-center justify-center text-slate-300 hover:text-purple-400 active:scale-90 transition-transform">
+                            <i data-lucide="chevron-right" class="w-8 h-8"></i>
+                        </button>
+                        <!-- Down -->
+                        <button onclick="sendKey('Down')" class="absolute bottom-2 w-14 h-12 flex items-center justify-center text-slate-300 hover:text-purple-400 active:scale-90 transition-transform">
+                            <i data-lucide="chevron-down" class="w-8 h-8"></i>
+                        </button>
+                    </div>
+
+                    <!-- Transport / Playback Controls -->
+                    <div class="grid grid-cols-3 gap-3 w-full my-6">
+                        <button onclick="sendKey('Rev')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-300">
+                            <i data-lucide="rewind" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('Play')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-200">
+                            <i data-lucide="play" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('Fwd')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-300">
+                            <i data-lucide="fast-forward" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Volume & Mute Controls -->
+                    <div class="grid grid-cols-3 gap-3 w-full pt-2 border-t border-slate-800/80">
+                        <button onclick="sendKey('VolumeDown')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-400">
+                            <i data-lucide="volume-1" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('VolumeMute')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-400">
+                            <i data-lucide="volume-x" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendKey('VolumeUp')" class="glass-button py-3 rounded-2xl flex items-center justify-center text-slate-400">
+                            <i data-lucide="volume-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
                 </div>
+            </section>
+        </main>
+    </div>
 
-                <!-- LOREBOOK TAB -->
-                <div id="viewLore" class="hidden space-y-4">
-                    <div class="flex items-center justify-between">
-                        <h4 class="text-xs font-retro text-slate-300">World Lorebook</h4>
-                        <button onclick="addLoreEntryPrompt()" class="px-3 py-1.5 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-retro text-[9px] rounded-lg hover:bg-indigo-600/50 transition cursor-pointer">+ Add Entry</button>
-                    </div>
-                    <div id="loreEntriesList" class="space-y-3">
-                        <!-- Lore entries -->
-                    </div>
-                </div>
-
-            </div>
-        </div>
+    <!-- Status Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 translate-y-20 opacity-0 transition-all duration-300 max-w-md bg-slate-900 border border-slate-700 text-slate-200 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50 pointer-events-none">
+        <i id="toastIcon" data-lucide="info" class="w-5 h-5 text-purple-400"></i>
+        <p id="toastMsg" class="text-xs font-medium">Command sent successfully</p>
     </div>
 
     <script>
-        // Core RPG Engine State
-        let activeRole = "hero"; // "hero" or "gm"
-        let playMode = "local"; // "local" or "peer"
-        let broadcastChannel = null;
+        // Initialize Lucide Icons
+        lucide.createIcons();
 
-        const HERO_TEMPLATES = [
-            {
-                names: ["Kaelen Vance", "Lyra Dawnseeker", "Garrick Stone", "Zephyr Vance"],
-                roles: ["Shadowblade", "Chrono Mage", "Aegis Vanguard", "Void Nomad"],
-                backstories: [
-                    "Exiled from the High Citadel after discovering forbidden arcane blueprints.",
-                    "A former mercenary seeking redemption in the rain-soaked alleyways."
-                ],
-                stats: { STR: 15, DEX: 14, INT: 11, WIS: 10 }
+        // Load saved Roku IP on page start
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedIp = localStorage.getItem('roku_ip');
+            if (savedIp) {
+                document.getElementById('rokuIp').value = savedIp;
+                updateBadge('Ready', 'green');
             }
-        ];
+        });
 
-        const PRESETS = {
-            dark_fantasy: {
-                title: "Chrono Realm: Dark Fantasy",
-                vibe: "Gritty dark fantasy, high stakes, visceral combat and ominous mysteries",
-                zone: "Town Square",
-                lore: [{ key: "Town Square", content: "Cobblestone plaza surrounded by taverns and weapon smiths." }],
-                initialMessage: "The bell in the town square tolls ominously as twilight falls over Aethelgard. The Game Master awaits your first move..."
-            },
-            cyberpunk: {
-                title: "Neon Overdrive 2099",
-                vibe: "High-tech low-life, noir cybernetics, megacorporation intrigue",
-                zone: "Sector 7 Alleyways",
-                lore: [{ key: "Aegis Corp", content: "Rival megacorporation controlling military cybernetics." }],
-                initialMessage: "Rain washes neon lights onto slick pavement. Your neural interface hums as the Game Master prepares the encounter..."
+        // Save IP Address locally
+        function saveRokuIp() {
+            const ip = document.getElementById('rokuIp').value.trim();
+            if (!ip) {
+                showToast('Please enter a valid Roku IP address', 'error');
+                return;
             }
-        };
+            localStorage.setItem('roku_ip', ip);
+            updateBadge('IP Saved', 'green');
+            showToast('Roku IP address saved!', 'success');
+        }
 
-        let state = {
-            hero: {
-                name: "Valen",
-                role: "Adventurer",
-                backstory: "A wanderer with an enigmatic past.",
-                level: 1,
-                exp: 0,
-                maxExp: 100,
-                hp: 100,
-                maxHp: 100,
-                mana: 50,
-                maxMana: 50,
-                stats: { STR: 14, DEX: 12, INT: 10, WIS: 11 },
-                gold: 75,
-                zone: "Town Square",
-                inventory: [
-                    { id: "w_steel_dagger", name: "Steel Dagger", type: "weapon", val: 6, desc: "+6 ATK (DEX Weapon)", slot: "weapon" },
-                    { id: "p_health", name: "Health Potion", type: "consumable", val: 40, desc: "Restores 40 HP", slot: "consumable" }
-                ],
-                equipped: { weapon: "Steel Dagger" }
-            },
-            scenario: {
-                title: "Chrono Realm: Shadow over Aethelgard",
-                vibe: "Gritty, immersive dark fantasy with tactical narrative depth",
-                currentLocation: "Town Square",
-                npcs: [
-                    {
-                        id: "npc_elena",
-                        name: "Captain Elena",
-                        role: "Town Guard Commander",
-                        zone: "Town Square",
-                        allegiance: "Ally",
-                        relationship: 50,
-                        traits: "Duty-bound, suspicious of magic, tactical",
-                        bio: "Oversees local defenses and seeks reliable mercenaries to investigate regional threats.",
-                        greeting: "Greetings, traveler. Mind your step in the square—we've had strange reports from the perimeter."
-                    }
-                ],
-                lorebook: [
-                    { key: "Town Square", content: "A bustling nexus where adventurers gather before heading into the wild wood." }
-                ]
-            },
-            history: []
-        };
-
-        function setPlayMode(mode) {
-            playMode = mode;
-            const btnLocal = document.getElementById('modeLocalBtn');
-            const btnPeer = document.getElementById('modePeerBtn');
-            const panel = document.getElementById('p2pControlPanel');
-
-            if (mode === 'local') {
-                btnLocal.className = "py-2 bg-indigo-600 border border-indigo-400 font-retro text-[9px] text-white rounded-xl shadow cursor-pointer";
-                btnPeer.className = "py-2 bg-slate-800 border border-slate-700 font-retro text-[9px] text-slate-300 rounded-xl cursor-pointer";
-                panel.classList.add('hidden');
+        // Helper to update badge
+        function updateBadge(text, color) {
+            const badge = document.getElementById('connectionBadge');
+            if (color === 'green') {
+                badge.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> ${text}`;
             } else {
-                btnPeer.className = "py-2 bg-indigo-600 border border-indigo-400 font-retro text-[9px] text-white rounded-xl shadow cursor-pointer";
-                btnLocal.className = "py-2 bg-slate-800 border border-slate-700 font-retro text-[9px] text-slate-300 rounded-xl cursor-pointer";
-                panel.classList.remove('hidden');
+                badge.className = "text-xs px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> ${text}`;
             }
         }
 
-        function connectP2PRoom() {
-            const room = document.getElementById('p2pRoomInput').value.trim();
-            if(!room) {
-                showModal("Room ID Required", "Please enter a Room ID (e.g. dragon-room).");
+        // Preview video locally in browser player
+        function loadPreviewVideo() {
+            const url = document.getElementById('videoUrl').value;
+            const player = document.getElementById('previewPlayer');
+            player.src = url;
+            player.load();
+            showToast('Loaded video preview in browser', 'info');
+        }
+
+        // Preset button action
+        function setPreset(url, type, name) {
+            document.getElementById('videoUrl').value = url;
+            document.getElementById('mediaType').value = type;
+            loadPreviewVideo();
+            showToast(`Loaded preset: ${name}`, 'info');
+        }
+
+        // Cast Video directly using Roku ECP (External Control Protocol)
+        async function castToRoku() {
+            const ip = document.getElementById('rokuIp').value.trim();
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const mediaType = document.getElementById('mediaType').value;
+
+            if (!ip) {
+                showToast('Please enter your Roku IP address', 'error');
+                return;
+            }
+            if (!videoUrl) {
+                showToast('Please enter a video URL to cast', 'error');
                 return;
             }
 
-            // Setup cross-tab / window sync channel
-            if(broadcastChannel) broadcastChannel.close();
-            broadcastChannel = new BroadcastChannel(`mno_rpg_room_${room}`);
+            // Roku Media Player App ID is 2281
+            const deepLinkUrl = `http://${ip}:8060/launch/2281?contentId=${encodeURIComponent(videoUrl)}&mediaType=${mediaType}`;
 
-            broadcastChannel.onmessage = (event) => {
-                if (event.data && event.data.type === 'SYNC_STATE') {
-                    state = event.data.state;
-                    updateUI();
-                    renderNarrativeFeed();
-                    renderInventory();
-                    renderNpcCards();
-                    renderLorebook();
-                }
-            };
+            showToast('Sending cast command to Roku...', 'info');
 
-            document.getElementById('p2pStatusText').innerText = `Connected (${room})`;
-            document.getElementById('p2pStatusText').className = "text-emerald-400";
-            document.getElementById('liveSyncBadge').classList.remove('hidden');
-            showModal("Multiplayer Sync Ready", `Connected to room "${room}". Open this web app in another window or browser tab with the same Room ID to sync live!`);
-        }
-
-        function syncStateBroadcast() {
-            if (broadcastChannel) {
-                broadcastChannel.postMessage({ type: 'SYNC_STATE', state });
-            }
-        }
-
-        function setInitialRole(role) {
-            activeRole = role;
-            const btnHero = document.getElementById('selectRoleHero');
-            const btnGm = document.getElementById('selectRoleGm');
-
-            if(role === 'hero') {
-                btnHero.className = "py-2.5 bg-indigo-600 border border-indigo-400 font-retro text-[10px] text-white rounded-xl shadow cursor-pointer";
-                btnGm.className = "py-2.5 bg-slate-800 border border-slate-700 font-retro text-[10px] text-slate-300 rounded-xl cursor-pointer";
-            } else {
-                btnGm.className = "py-2.5 bg-amber-600 border border-amber-400 font-retro text-[10px] text-slate-950 font-bold rounded-xl shadow cursor-pointer";
-                btnHero.className = "py-2.5 bg-slate-800 border border-slate-700 font-retro text-[10px] text-slate-300 rounded-xl cursor-pointer";
-            }
-        }
-
-        function toggleActiveRole() {
-            activeRole = activeRole === "hero" ? "gm" : "hero";
-            updateRoleBadge();
-            if (activeRole === "gm") switchTab('gmStation');
-            else switchTab('narrative');
-        }
-
-        function updateRoleBadge() {
-            const badgeIcon = document.getElementById('roleBadgeIcon');
-            const badgeText = document.getElementById('roleBadgeText');
-            const playerSection = document.getElementById('playerInputSection');
-            const gmSection = document.getElementById('gmInputSection');
-
-            if (activeRole === "hero") {
-                badgeIcon.innerText = "🗡️";
-                badgeText.innerText = "PLAYER SEAT";
-                badgeText.className = "font-retro text-[10px] text-amber-400 block";
-                playerSection.classList.remove('hidden');
-                gmSection.classList.add('hidden');
-            } else {
-                badgeIcon.innerText = "👑";
-                badgeText.innerText = "GM SEAT";
-                badgeText.className = "font-retro text-[10px] text-amber-400 block";
-                playerSection.classList.add('hidden');
-                gmSection.classList.remove('hidden');
-            }
-        }
-
-        function generateAIHero() {
-            const template = HERO_TEMPLATES[0];
-            const name = template.names[Math.floor(Math.random() * template.names.length)];
-            const role = template.roles[Math.floor(Math.random() * template.roles.length)];
-            const backstory = template.backstories[Math.floor(Math.random() * template.backstories.length)];
-
-            document.getElementById('heroNameInput').value = name;
-            document.getElementById('heroRoleInput').value = role;
-
-            state.hero.name = name;
-            state.hero.role = role;
-            state.hero.backstory = backstory;
-            state.hero.stats = { ...template.stats };
-
-            const backstoryContainer = document.getElementById('backstoryContainer');
-            document.getElementById('backstoryText').innerText = `"${backstory}" (${role})`;
-            backstoryContainer.classList.remove('hidden');
-
-            showModal("✨ Hero Profile Rolled", `Created profile: ${name} the ${role}.`);
-        }
-
-        function getMod(statVal) {
-            return Math.floor((statVal - 10) / 2);
-        }
-
-        function showModal(title, body) {
-            document.getElementById('msgTitle').innerText = title;
-            document.getElementById('msgBody').innerText = body;
-            document.getElementById('msgModal').classList.remove('hidden');
-        }
-
-        function closeModal() {
-            document.getElementById('msgModal').classList.add('hidden');
-        }
-
-        function loadPresetScenario() {
-            const val = document.getElementById('scenarioSelect').value;
-            if(PRESETS[val]) {
-                // Preset selected
-            }
-        }
-
-        function initGame(loadSaved = false) {
-            if(loadSaved) {
-                const saved = localStorage.getItem('mno_rpg_2p_save');
-                if(saved) {
-                    try { state = JSON.parse(saved); } catch(e) {}
-                }
-            } else {
-                const heroName = document.getElementById('heroNameInput').value.trim();
-                const heroRole = document.getElementById('heroRoleInput').value.trim();
-                const scenarioType = document.getElementById('scenarioSelect').value;
-
-                if(heroName) state.hero.name = heroName;
-                if(heroRole) state.hero.role = heroRole;
-
-                if(PRESETS[scenarioType]) {
-                    state.scenario.title = PRESETS[scenarioType].title;
-                    state.scenario.currentLocation = PRESETS[scenarioType].zone;
-                    state.hero.zone = PRESETS[scenarioType].zone;
-                    state.history = [{
-                        type: "gm",
-                        text: `${PRESETS[scenarioType].initialMessage}`,
-                        innerThought: "2-Player session initiated. Game Master is active."
-                    }];
-                }
-            }
-
-            document.getElementById('screenCreation').classList.add('hidden');
-            document.getElementById('screenGame').classList.remove('hidden');
-
-            updateRoleBadge();
-            updateUI();
-            renderNarrativeFeed();
-            renderInventory();
-            renderNpcCards();
-            renderLorebook();
-            syncStateBroadcast();
-        }
-
-        function saveGame() {
-            localStorage.setItem('mno_rpg_2p_save', JSON.stringify(state));
-            showModal("Session Saved", "Saved campaign state locally.");
-        }
-
-        function exportSave() {
-            const jsonStr = JSON.stringify(state, null, 2);
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(jsonStr);
-                showModal("Exported Data", "Copied save state JSON!");
-            } else {
-                showModal("Save Data JSON", jsonStr);
-            }
-        }
-
-        function resetGame() {
-            if(confirm("Reset engine progress?")) {
-                localStorage.removeItem('mno_rpg_2p_save');
-                location.reload();
-            }
-        }
-
-        function switchTab(tab) {
-            const tabs = ['narrative', 'inventory', 'npc', 'lore', 'gmStation'];
-            tabs.forEach(t => {
-                const view = document.getElementById(`view${t.charAt(0).toUpperCase() + t.slice(1)}`);
-                const btn = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}Btn`);
-                if (view) view.classList.add('hidden');
-                if (btn && t !== 'gmStation') btn.className = "py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-retro text-[9px] rounded-xl shadow transition cursor-pointer";
-            });
-
-            const activeView = document.getElementById(`view${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
-            const activeBtn = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
-
-            if (activeView) activeView.classList.remove('hidden');
-            if (activeBtn && tab !== 'gmStation') activeBtn.className = "py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-retro text-[9px] rounded-xl shadow transition cursor-pointer";
-        }
-
-        function updateUI() {
-            document.getElementById('displayHeroName').innerText = state.hero.name;
-            document.getElementById('displayClass').innerText = `Level ${state.hero.level} ${state.hero.role}`;
-            document.getElementById('displayZone').innerText = state.hero.zone;
-            document.getElementById('displayHp').innerText = `${state.hero.hp}/${state.hero.maxHp}`;
-            document.getElementById('displayMana').innerText = `${state.hero.mana}/${state.hero.maxMana}`;
-            document.getElementById('displayGold').innerText = `${state.hero.gold} Gold`;
-            document.getElementById('displayExp').innerText = `${state.hero.exp} / ${state.hero.maxExp}`;
-
-            const expPct = Math.min(100, (state.hero.exp / state.hero.maxExp) * 100);
-            document.getElementById('expBar').style.width = `${expPct}%`;
-
-            ['STR', 'DEX', 'INT', 'WIS'].forEach(s => {
-                const val = state.hero.stats[s];
-                const mod = getMod(val);
-                document.getElementById(`stat${s.charAt(0) + s.slice(1).toLowerCase()}`).innerText = val;
-                document.getElementById(`mod${s.charAt(0) + s.slice(1).toLowerCase()}`).innerText = (mod >= 0 ? `+${mod}` : `${mod}`);
-            });
-        }
-
-        function renderNarrativeFeed() {
-            const feed = document.getElementById('narrativeFeed');
-            if(!feed) return;
-            feed.innerHTML = "";
-
-            const showThoughts = document.getElementById('toggleInnerThoughts').checked;
-
-            state.history.forEach(entry => {
-                const item = document.createElement('div');
-                item.className = "space-y-1 text-xs sm:text-sm";
-
-                if (entry.type === "player") {
-                    item.innerHTML = `
-                        <div class="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl text-slate-100">
-                            <span class="font-retro text-[9px] text-indigo-400 block mb-1">▶ PLAYER HERO (${state.hero.name}):</span>
-                            <p>${entry.text}</p>
-                        </div>
-                    `;
-                } else if (entry.type === "gm") {
-                    item.innerHTML = `
-                        <div class="bg-slate-950/80 border border-amber-500/30 p-3.5 rounded-xl text-slate-200 space-y-2">
-                            <span class="font-retro text-[9px] text-amber-400 block">📜 GAME MASTER:</span>
-                            <p class="leading-relaxed">${entry.text.replace(/\n/g, '<br>')}</p>
-                            ${showThoughts && entry.innerThought ? `
-                                <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] text-indigo-300/80 italic">
-                                    💭 <i>GM Notes:</i> "${entry.innerThought}"
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                } else if (entry.type === "roll") {
-                    item.innerHTML = `
-                        <div class="bg-amber-950/30 border border-amber-500/40 p-2.5 rounded-xl text-amber-200 text-xs font-mono">
-                            🎲 <b>STAT CHECK:</b> ${entry.text}
-                        </div>
-                    `;
-                }
-                feed.appendChild(item);
-            });
-
-            feed.scrollTop = feed.scrollHeight;
-        }
-
-        function triggerQuickAction(str) {
-            document.getElementById('userInputPrompt').value = str;
-            submitUserAction();
-        }
-
-        function handlePromptKey(e) {
-            if (e.key === "Enter") submitUserAction();
-        }
-
-        function submitUserAction() {
-            const input = document.getElementById('userInputPrompt');
-            const actionText = input.value.trim();
-            if (!actionText) return;
-
-            state.history.push({ type: "player", text: actionText });
-            input.value = "";
-            renderNarrativeFeed();
-            syncStateBroadcast();
-        }
-
-        function submitGmNarration() {
-            const textarea = document.getElementById('gmNarrativeText');
-            const text = textarea.value.trim();
-            if (!text) return;
-
-            state.history.push({ type: "gm", text: text, innerThought: "Direct GM story intervention." });
-            textarea.value = "";
-            renderNarrativeFeed();
-            syncStateBroadcast();
-        }
-
-        function gmPublishScene() {
-            const loc = document.getElementById('gmSceneLocation').value.trim();
-            const text = document.getElementById('gmSceneText').value.trim();
-            const thought = document.getElementById('gmThoughtText').value.trim();
-
-            if (loc) {
-                state.hero.zone = loc;
-                state.scenario.currentLocation = loc;
-            }
-
-            if (text) {
-                state.history.push({
-                    type: "gm",
-                    text: text,
-                    innerThought: thought || "Scene published by GM."
+            try {
+                // Sending HTTP POST request to Roku ECP port 8060
+                await fetch(deepLinkUrl, {
+                    method: 'POST',
+                    mode: 'no-cors' // Allows sending commands without strict CORS blocking
                 });
+                
+                showToast('Cast command sent to Roku Media Player!', 'success');
+            } catch (err) {
+                console.error('Cast error:', err);
+                showToast('Failed to reach Roku. Check IP & Network settings.', 'error');
             }
-
-            document.getElementById('gmSceneText').value = "";
-            document.getElementById('gmThoughtText').value = "";
-
-            updateUI();
-            renderNarrativeFeed();
-            switchTab('narrative');
-            syncStateBroadcast();
-            showModal("Scene Published", "Game Master scene has been published to the game feed!");
         }
 
-        function gmGrantReward(type, val) {
-            if (type === 'exp') {
-                state.hero.exp += val;
-                if(state.hero.exp >= state.hero.maxExp) {
-                    state.hero.level += 1;
-                    state.hero.exp -= state.hero.maxExp;
-                    state.hero.maxExp += 50;
-                }
-            } else if (type === 'gold') {
-                state.hero.gold += val;
-            } else if (type === 'heal') {
-                state.hero.hp = Math.min(state.hero.maxHp, state.hero.hp + val);
+        // Send Key commands (Navigation, Media control, Volume)
+        async function sendKey(key) {
+            const ip = document.getElementById('rokuIp').value.trim();
+            if (!ip) {
+                showToast('Please enter your Roku IP address', 'error');
+                return;
             }
 
-            state.history.push({
-                type: "gm",
-                text: `✨ [GM REWARD]: Granted +${val} ${type.toUpperCase()} to ${state.hero.name}!`,
-                innerThought: "Game Master grant."
-            });
+            const keyUrl = `http://${ip}:8060/keypress/${key}`;
 
-            updateUI();
-            renderNarrativeFeed();
-            syncStateBroadcast();
-        }
-
-        function gmTriggerEvent(eventType) {
-            if (eventType === 'ambush') {
-                state.history.push({
-                    type: "gm",
-                    text: `⚔️ [GM EVENT]: An unexpected foe leaps from the shadows to engage ${state.hero.name}! Roll for initiative or DEX check.`,
-                    innerThought: "GM combat trigger."
+            try {
+                await fetch(keyUrl, {
+                    method: 'POST',
+                    mode: 'no-cors'
                 });
-            } else if (eventType === 'trap') {
-                state.hero.hp = Math.max(1, state.hero.hp - 15);
-                state.history.push({
-                    type: "gm",
-                    text: `⚠️ [GM EVENT]: A mechanical trap snaps shut! ${state.hero.name} takes 15 trap damage!`,
-                    innerThought: "GM environmental hazard."
-                });
-            }
-            updateUI();
-            renderNarrativeFeed();
-            syncStateBroadcast();
-        }
-
-        function performRollCheck(stat) {
-            const roll = Math.floor(Math.random() * 20) + 1;
-            const mod = getMod(state.hero.stats[stat]);
-            const total = roll + mod;
-            const resultStr = `${stat} Check: Rolled ${roll} (d20) ${mod >= 0 ? '+' : ''}${mod} = Total ${total}`;
-
-            state.history.push({ type: "roll", text: resultStr });
-            renderNarrativeFeed();
-            syncStateBroadcast();
-        }
-
-        // NPCs
-        let activeNpc = null;
-
-        function renderNpcCards() {
-            const container = document.getElementById('npcCardsList');
-            if(!container) return;
-            container.innerHTML = "";
-
-            state.scenario.npcs.forEach((npc, idx) => {
-                const div = document.createElement('div');
-                div.className = "bg-slate-950/70 border border-slate-800 p-3.5 rounded-2xl flex flex-col justify-between gap-2";
-                div.innerHTML = `
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <h5 class="font-bold text-xs text-slate-200">${npc.name}</h5>
-                            <span class="px-2 py-0.5 border text-[9px] rounded-full font-medium border-emerald-500/40 text-emerald-400">${npc.allegiance}</span>
-                        </div>
-                        <span class="text-[10px] text-indigo-400 block mb-1">${npc.role}</span>
-                        <p class="text-[11px] text-slate-300 leading-relaxed">${npc.bio}</p>
-                    </div>
-                    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
-                        <span class="text-[10px] text-slate-400">Affection: <b class="text-amber-400">${npc.relationship}%</b></span>
-                        <button onclick="openNpcDialogue(${idx})" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-retro text-[8px] rounded-xl cursor-pointer">Talk</button>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        function openNpcDialogue(idx) {
-            activeNpc = state.scenario.npcs[idx];
-            if(!activeNpc) return;
-
-            document.getElementById('npcModalAvatar').innerText = activeNpc.name.charAt(0);
-            document.getElementById('npcModalName').innerText = activeNpc.name;
-            document.getElementById('npcModalRole').innerText = `${activeNpc.role}`;
-
-            const history = document.getElementById('npcDialogueHistory');
-            history.innerHTML = `<div class="p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200">"${activeNpc.greeting}"</div>`;
-
-            document.getElementById('npcDialogueModal').classList.remove('hidden');
-        }
-
-        function handleNpcSpeechKey(e) {
-            if (e.key === "Enter") submitCustomNpcDialogue();
-        }
-
-        function submitCustomNpcDialogue() {
-            const input = document.getElementById('npcUserSpeechInput');
-            const text = input.value.trim();
-            if (!text || !activeNpc) return;
-
-            const history = document.getElementById('npcDialogueHistory');
-            const entry = document.createElement('div');
-            entry.className = "p-2.5 bg-indigo-950/60 border border-indigo-500/30 rounded-xl text-right text-xs text-slate-100";
-            entry.innerText = `"${text}"`;
-            history.appendChild(entry);
-            input.value = "";
-            history.scrollTop = history.scrollHeight;
-        }
-
-        function interactNpc(option) {
-            if(!activeNpc) return;
-            const history = document.getElementById('npcDialogueHistory');
-            let responseText = "";
-
-            if (option === 'ask_rumors') {
-                responseText = `${activeNpc.name} whispers: "Rumors say shadows move at midnight near the town gates..."`;
-            } else if (option === 'offer_help') {
-                responseText = `${activeNpc.name} nods: "Help is always appreciated. Keep your blade ready."`;
-            } else if (option === 'persuade') {
-                const roll = Math.floor(Math.random() * 20) + 1;
-                responseText = `${activeNpc.name} considers your words... [Persuasion Check Rolled ${roll}]`;
-            }
-
-            const entry = document.createElement('div');
-            entry.className = "p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200";
-            entry.innerText = responseText;
-            history.appendChild(entry);
-            history.scrollTop = history.scrollHeight;
-        }
-
-        function closeNpcDialogue() {
-            document.getElementById('npcDialogueModal').classList.add('hidden');
-        }
-
-        function renderInventory() {
-            const grid = document.getElementById('inventoryGrid');
-            if(!grid) return;
-            grid.innerHTML = "";
-
-            state.hero.inventory.forEach(item => {
-                const div = document.createElement('div');
-                div.className = "bg-slate-950/70 border border-slate-800 p-3 rounded-2xl flex flex-col justify-between";
-                div.innerHTML = `
-                    <div>
-                        <span class="font-bold text-xs text-slate-200 block mb-1">${item.name}</span>
-                        <p class="text-[11px] text-slate-400">${item.desc}</p>
-                    </div>
-                `;
-                grid.appendChild(div);
-            });
-        }
-
-        function renderLorebook() {
-            const list = document.getElementById('loreEntriesList');
-            if(!list) return;
-            list.innerHTML = "";
-
-            state.scenario.lorebook.forEach(entry => {
-                const div = document.createElement('div');
-                div.className = "bg-slate-950/70 border border-slate-800 p-3 rounded-2xl";
-                div.innerHTML = `
-                    <span class="font-bold text-xs text-indigo-400 block mb-1">${entry.key}</span>
-                    <p class="text-xs text-slate-300">${entry.content}</p>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function addNpcPrompt() {
-            const name = prompt("NPC Name:");
-            if(name) {
-                state.scenario.npcs.push({
-                    id: `npc_${Date.now()}`,
-                    name,
-                    role: "Contact",
-                    allegiance: "Neutral",
-                    relationship: 50,
-                    bio: "A local contact.",
-                    greeting: "Greetings."
-                });
-                renderNpcCards();
+                showToast(`Key pressed: ${key}`, 'info');
+            } catch (err) {
+                console.error('Key error:', err);
+                showToast(`Failed to send key: ${key}`, 'error');
             }
         }
 
-        function addLoreEntryPrompt() {
-            const key = prompt("Lore Title:");
-            const content = prompt("Lore Content:");
-            if(key && content) {
-                state.scenario.lorebook.push({ key, content });
-                renderLorebook();
+        // Toast notification system
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = msg;
+
+            if (type === 'error') {
+                toastIcon.setAttribute('data-lucide', 'alert-circle');
+                toastIcon.className = "w-5 h-5 text-red-400";
+            } else if (type === 'success') {
+                toastIcon.setAttribute('data-lucide', 'check-circle');
+                toastIcon.className = "w-5 h-5 text-emerald-400";
+            } else {
+                toastIcon.setAttribute('data-lucide', 'info');
+                toastIcon.className = "w-5 h-5 text-purple-400";
             }
+            lucide.createIcons();
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
         }
     </script>
 </body>
